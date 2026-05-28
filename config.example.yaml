@@ -1,0 +1,31 @@
+base_url: "https://picix.us/"
+dry_run: true
+storage_state_path: "storage_state.json"
+state_file: "state.json"
+
+# cf_clearance cookie 是在真实浏览器指纹下签发的，
+# user_agent 必须与签发 cookie 的浏览器版本一致
+http_client:
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+
+# 资源包不够时自动购买（用积分）
+auto_buy:
+  enabled: true
+  # goodId: 1=轻量包(30次/450分), 2=标准包(90次/1000分), 3=增强包(200次/1600分)
+  good_id: 1
+
+# 按填写的顺序依次解锁片单中的电影
+# 留空则自动获取所有收藏片单（顺序由 API 返回决定）
+resource_urls:
+  favorite_list_ids: []
+  playlist: []
+  normal: []
+
+daily_run_window:
+  start: "08:00"
+  end: "23:00"
+
+# Telegram 通知（填写后 run 完成会自动推送结果）
+telegram:
+  bot_token: ""
+  chat_id: ""

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+state.json
+storage_state.json
+config.yaml
+data/
+*.egg-info/
+dist/
+build/

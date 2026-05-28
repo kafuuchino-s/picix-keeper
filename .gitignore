@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+.Python
+.venv/
+venv/
+ENV/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+build/
+dist/
+*.egg-info/
+
+.env
+config.yaml
+state.json
+storage_state.json
+logs/
+
+playwright-report/
+test-results/
+
+# Runtime / data
+data/
+probe_log.txt
+
+# OS
+.DS_Store
+Thumbs.db
