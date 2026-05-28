@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 CONFIG="${PICIX_CONFIG:-/data/config.yaml}"
 
@@ -9,9 +8,9 @@ if [ -z "$CRON_SCHEDULE" ]; then
 import yaml, sys
 try:
     c = yaml.safe_load(open('$CONFIG'))
-    print(c.get('cron_schedule', '5 9 * * *'))
+    print(c.get('cron_schedule', '5 6 * * *'))
 except:
-    print('5 9 * * *')
+    print('5 6 * * *')
 ")
 fi
 
@@ -19,11 +18,13 @@ fi
 if [ "$1" = "cron" ]; then
     echo "Setting up cron: $CRON_SCHEDULE picix-keeper run"
     echo "$CRON_SCHEDULE cd /app && picix-keeper run --config $CONFIG >> /data/log.txt 2>&1" > /etc/crontab
-    # 安装 cron 并启动
-    apt-get update -qq && apt-get install -y -qq cron > /dev/null 2>&1
+    # 安装 cron — 非交互模式，保留本地 crontab
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::="--force-confold" cron
     cron
     echo "Cron started. Container staying alive."
-    tail -f /data/log.txt 2>/dev/null || sleep infinity
+    touch /data/log.txt
+    exec sleep infinity
 
 # 否则直接执行传入的命令（如 run, status, extract）
 else
