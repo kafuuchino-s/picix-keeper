@@ -20,7 +20,7 @@ from .constants import DEFAULT_CONFIG_EXAMPLE_PATH, DEFAULT_CONFIG_PATH
 from .http_client import AuthenticationExpiredError
 from .models import AppState, TaskStatus
 from .notifier import notify_error, notify_status
-from .scheduler import is_within_daily_window, monthly_finalize_hint
+from .scheduler import monthly_finalize_hint
 from .state import load_state, save_state
 from .tasks import (
     daily_keep_alive_http,
@@ -111,11 +111,6 @@ def run(
     config = _load_config_or_exit(config_path)
     state_path = config.resolve_path(config.state_file)
     state = load_state(state_path)
-
-    if not is_within_daily_window(config):
-        logger.warning(
-            "Current time is outside daily_run_window; continuing because the window is advisory."
-        )
 
     try:
         updated_state = daily_keep_alive_http(config, state)

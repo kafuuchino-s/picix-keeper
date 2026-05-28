@@ -21,9 +21,9 @@ resource_urls:
   playlist: []
   normal: []
 
-daily_run_window:
-  start: "08:00"
-  end: "23:00"
+# Docker cron 模式下的定时表达式（分钟 小时 日 月 星期）
+# 仅在 docker command: cron 时生效
+cron_schedule: "5 6 * * *"
 
 # Telegram 通知（填写后 run 完成会自动推送结果）
 telegram:

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 
-from .config import AppConfig
 from .constants import MONTHLY_REWARD_POINTS, MONTHLY_UNLOCK_TARGET, UNLOCK_COST_POINTS
 from .models import AppState, TaskStatus
 
@@ -13,20 +12,6 @@ def should_run_today(state: AppState) -> bool:
     """Return False only when today's daily flow has already completed."""
 
     return not (state.last_run_date == date.today() and state.daily_done)
-
-
-def is_within_daily_window(config: AppConfig, now: datetime | None = None) -> bool:
-    """Check the preferred run window, supporting windows that cross midnight."""
-
-    if config.daily_run_window.start is None or config.daily_run_window.end is None:
-        return True
-
-    current = (now or datetime.now()).time()
-    start = config.daily_run_window.start
-    end = config.daily_run_window.end
-    if start <= end:
-        return start <= current <= end
-    return current >= start or current <= end
 
 
 def monthly_finalize_hint(status: TaskStatus) -> str:

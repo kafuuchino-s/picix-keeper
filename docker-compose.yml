@@ -7,7 +7,7 @@ services:
       - ./data:/data
     environment:
       - PICIX_CONFIG=/data/config.yaml
-      # cron 表达式（默认每天 09:05）
-      - CRON_SCHEDULE=5 9 * * *
+      # CRON_SCHEDULE 环境变量可覆盖 config.yaml 中的 cron_schedule
+      # - CRON_SCHEDULE=5 9 * * *
     # 用 cron 模式启动：容器保持运行，内置定时执行
     command: cron

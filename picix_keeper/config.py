@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import time
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +36,9 @@ resource_urls:
   playlist: []
   normal: []
 
-daily_run_window:
-  start: "08:00"
-  end: "23:00"
+# Docker cron 模式下的定时表达式（分钟 小时 日 月 星期）
+# 仅在 docker command: cron 时生效
+cron_schedule: "5 6 * * *"
 
 # Telegram 通知（填写后 run 完成会自动推送结果）
 telegram:
@@ -58,13 +57,6 @@ class ResourceUrlConfig(BaseModel):
     playlist: list[str] = Field(default_factory=list)
     normal: list[str] = Field(default_factory=list)
     favorite_list_ids: list[int] = Field(default_factory=list)
-
-
-class DailyRunWindow(BaseModel):
-    """Preferred local time window for the daily run."""
-
-    start: time | None = None
-    end: time | None = None
 
 
 class HttpClientConfig(BaseModel):
@@ -109,7 +101,7 @@ class AppConfig(BaseModel):
     http_client: HttpClientConfig = Field(default_factory=HttpClientConfig)
     auto_buy: AutoBuyConfig = Field(default_factory=AutoBuyConfig)
     resource_urls: ResourceUrlConfig = Field(default_factory=ResourceUrlConfig)
-    daily_run_window: DailyRunWindow = Field(default_factory=DailyRunWindow)
+    cron_schedule: str = "5 9 * * *"
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
 
     _config_dir: Path = PrivateAttr(default=Path("."))
