@@ -21,6 +21,7 @@ class Resource(BaseModel):
     id: str
     url: str
     kind: ResourceKind
+    list_id: int | None = None
 
 
 class TaskStatus(BaseModel):

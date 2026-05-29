@@ -73,6 +73,7 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
                         id=str(movie_id),
                         url=f"{base}/Movies/Detail/{movie_id}",
                         kind=ResourceKind.PLAYLIST,
+                        list_id=list_id,
                     )
                 )
         except Exception as exc:

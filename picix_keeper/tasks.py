@@ -230,12 +230,16 @@ def _finish_daily_task(client: CurlClient, base: str) -> None:
 # Unlock resource (stub — waiting for unlock API endpoint)
 # ---------------------------------------------------------------------------
 
-def unlock_resource_via_http(config: AppConfig, movie_id: str) -> None:
+def unlock_resource_via_http(config: AppConfig, movie_id: str, *, list_id: int | None = None) -> None:
     """POST /Movies/unlock to unlock a movie using resource pack quota."""
     client = CurlClient(config)
     base = config.base_url.rstrip("/")
 
-    sc, body = client.post(base + "/api/Movies/unlock", json={"movieId": int(movie_id)})
+    payload: dict[str, Any] = {"movieId": int(movie_id)}
+    if list_id is not None:
+        payload["fromMovieList"] = list_id
+
+    sc, body = client.post(base + "/api/Movies/unlock", json=payload)
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("🔓 影片 id={} 解锁成功", movie_id)
@@ -291,7 +295,7 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
         _save_status_to_state(status, state, config)
         return state
 
-    unlock_resource_via_http(config, resource.id)
+    unlock_resource_via_http(config, resource.id, list_id=resource.list_id)
 
     # Step 4: finish daily task (claim reward)
     _finish_daily_task(client, base)
