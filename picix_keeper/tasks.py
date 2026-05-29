@@ -76,6 +76,7 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
         if unique == "D_UL_1":
             out["daily_done"] = (proc.get("isFinish") == "Y")
             out["daily_accepted"] = bool(proc)  # has process ⇒ already accepted
+        elif unique == "M_UL_50":
             out["monthly_unlock_progress"] = proc.get("process", 0)
         elif unique == "M_UL_ML_20":
             out["playlist_unlock_progress"] = proc.get("process", 0)
