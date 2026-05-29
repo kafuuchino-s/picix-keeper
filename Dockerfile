@@ -1,5 +1,9 @@
 FROM python:3.12-slim
 
+RUN apt-get update -qq && apt-get install -y -qq tzdata && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Shanghai
+
 WORKDIR /app
 
 COPY pyproject.toml ./
