@@ -17,7 +17,7 @@ fi
 # 如果第一参数是 cron，设置定时任务然后保持容器运行
 if [ "$1" = "cron" ]; then
     echo "Setting up cron: $CRON_SCHEDULE picix-keeper run"
-    echo "$CRON_SCHEDULE cd /app && picix-keeper run --config $CONFIG >> /data/log.txt 2>&1" > /etc/crontab
+    echo "$CRON_SCHEDULE root cd /app && picix-keeper run --config $CONFIG >> /data/log.txt 2>&1" > /etc/crontab
     # 安装 cron — 非交互模式，保留本地 crontab
     DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::="--force-confold" cron
