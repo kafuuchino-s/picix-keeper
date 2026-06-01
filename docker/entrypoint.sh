@@ -19,6 +19,9 @@ if [ "$1" = "cron" ]; then
     KEEPER=$(which picix-keeper || echo "/usr/local/bin/picix-keeper")
     echo "Setting up cron: $CRON_SCHEDULE picix-keeper run"
     echo "$CRON_SCHEDULE root cd /app && $KEEPER run --config $CONFIG >> /data/log.txt 2>&1" > /etc/crontab
+    # 设置系统时区（cron 读 /etc/localtime 不读 TZ 环境变量）
+    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+    echo "Asia/Shanghai" > /etc/timezone
     # 安装 cron — 非交互模式，保留本地 crontab
     DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::="--force-confold" cron
