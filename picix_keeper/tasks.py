@@ -67,7 +67,13 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
         "daily_accepted": False,
         "monthly_unlock_progress": 0,
         "playlist_unlock_progress": 0,
+        # Per-monthly-task accepted flags: True once the API returns a
+        # ``process`` object (None ⇒ not yet claimed).
+        "M_UL_50_accepted": False,
+        "M_UL_ML_20_accepted": False,
+        "monthly_accepted": False,
     }
+    monthly_uniques = ("M_UL_50", "M_UL_ML_20")
     for t in tasks:
         if not isinstance(t, dict):
             continue
@@ -78,8 +84,12 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
             out["daily_accepted"] = bool(proc)  # has process ⇒ already accepted
         elif unique == "M_UL_50":
             out["monthly_unlock_progress"] = proc.get("process", 0)
+            out["M_UL_50_accepted"] = bool(proc)
         elif unique == "M_UL_ML_20":
             out["playlist_unlock_progress"] = proc.get("process", 0)
+            out["M_UL_ML_20_accepted"] = bool(proc)
+    # True only if BOTH monthly tasks are claimed.
+    out["monthly_accepted"] = all(out.get(f"{u}_accepted") for u in monthly_uniques)
     return out
 
 
@@ -197,19 +207,47 @@ def _ensure_package_quota(config: AppConfig, client: CurlClient, base: str) -> N
 # Task accept / finish
 # ---------------------------------------------------------------------------
 
-def _accept_daily_task(client: CurlClient, base: str) -> None:
-    """POST /Tasks/accept to claim the daily unlock task."""
-    sc, body = client.post(base + "/api/Tasks/accept", json={"unique": "D_UL_1"})
+# 月度任务：领取后每日解锁才会计入月进度，否则 progress 永远为 0。
+MONTHLY_TASK_UNIQUES: tuple[str, ...] = ("M_UL_50", "M_UL_ML_20")
+
+
+def _accept_task(client: CurlClient, base: str, unique: str, label: str) -> bool:
+    """POST /Tasks/accept to claim a task by ``unique``.
+
+    Returns True if the task is now accepted (either freshly claimed or already
+    claimed earlier in the period). Returns False only on unexpected failures.
+    """
+    sc, body = client.post(base + "/api/Tasks/accept", json={"unique": unique})
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
-        logger.info("✅ 每日解锁任务领取成功")
-    else:
-        # "周期内您已接取过该任务" is fine — task already accepted
-        msg = resp.get("msg", "")
-        if "已接取" in msg:
-            logger.info("每日解锁任务已领取过（无需重复领取）")
-        else:
-            logger.warning("领取任务返回: {}", msg)
+        logger.info("✅ {}领取成功", label)
+        return True
+    # "周期内您已接取过该任务" is fine — task already accepted
+    msg = resp.get("msg", "")
+    if "已接取" in msg:
+        logger.info("{}已领取过（无需重复领取）", label)
+        return True
+    logger.warning("领取{}返回: {}", label, msg)
+    return False
+
+
+def _accept_daily_task(client: CurlClient, base: str) -> None:
+    """POST /Tasks/accept to claim the daily unlock task."""
+    _accept_task(client, base, "D_UL_1", "每日解锁任务")
+
+
+def _ensure_monthly_tasks_accepted(client: CurlClient, base: str) -> None:
+    """Claim any monthly unlock tasks that aren't accepted yet.
+
+    Without this, ``M_UL_50`` / ``M_UL_ML_20`` never get a ``process`` field
+    from the API and their progress stays at 0 forever. Idempotent: only calls
+    accept for tasks whose ``process`` is missing.
+    """
+    parsed = _parse_task_list_json(client.get(base + "/api/Tasks/list")[1])
+    for unique in MONTHLY_TASK_UNIQUES:
+        if parsed.get(f"{unique}_accepted"):
+            continue
+        _accept_task(client, base, unique, f"月度任务 {unique}")
 
 
 def _finish_daily_task(client: CurlClient, base: str) -> None:
@@ -258,6 +296,12 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
     if not should_run_today(state):
         logger.info("Today's daily flow is already marked complete; exiting.")
         return state
+
+    # Step 0a: ensure monthly tasks are claimed (independent of daily status).
+    # A claimed monthly task gets a ``process`` field from the API; until then,
+    # unlocks don't count toward the 50/20 monthly progress. Claiming is
+    # idempotent, so this is cheap even when the daily task is already done.
+    _ensure_monthly_tasks_accepted(CurlClient(config), config.base_url.rstrip("/"))
 
     # Step 0: check current status
     status = get_task_status_via_http(config)
