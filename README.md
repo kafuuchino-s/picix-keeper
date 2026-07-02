@@ -128,6 +128,39 @@ picix-keeper finalize
 当前月解锁进度 x/50，还差 n 个，需要 n*20 积分，完成后可领取 640 积分
 ```
 
+## Docker
+
+本地构建与运行（配置与状态挂载到 `./data`）：
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+容器默认以 `cron` 模式按 `config.yaml` 中的 `cron_schedule` 定时执行 `picix-keeper run`。
+
+### GitHub Actions → GHCR
+
+推送到 `master` 或推送 `v*` 标签时，[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml) 会自动构建并推送到 GitHub Container Registry：
+
+```text
+ghcr.io/kafuuchino-s/picix-keeper:latest   # master 分支
+ghcr.io/kafuuchino-s/picix-keeper:master
+ghcr.io/kafuuchino-s/picix-keeper:<git-sha>
+ghcr.io/kafuuchino-s/picix-keeper:v1.0.0    # 打 tag 时
+```
+
+拉取并运行示例（将 `./data` 换成你的配置目录）：
+
+```bash
+docker pull ghcr.io/kafuuchino-s/picix-keeper:latest
+docker run -d --name picix-keeper --restart unless-stopped \
+  -v "$(pwd)/data:/data" -e TZ=Asia/Shanghai \
+  ghcr.io/kafuuchino-s/picix-keeper:latest cron
+```
+
+首次使用 GHCR 若包为私有，需在 GitHub → Packages 中将镜像设为 Public，或使用 `docker login ghcr.io`（Personal Access Token 需 `read:packages`）。
+
 ## crontab 示例
 
 建议每天运行一次，例如每天 09:15：
