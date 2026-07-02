@@ -13,6 +13,7 @@ from .config import AppConfig
 from .constants import PLAYLIST_UNLOCK_TARGET
 from .http_client import AuthenticationExpiredError, CurlClient
 from .models import AppState, TaskStatus
+from .notifier import notify_error
 from .resource_picker import pick_resource
 from .scheduler import should_run_today
 from .state import save_state
@@ -45,7 +46,7 @@ def is_daily_done(status: TaskStatus) -> bool:
 def _save_status_to_state(status: TaskStatus, state: AppState, config: AppConfig) -> None:
     state.apply_status(status)
     if status.daily_done:
-        state.last_run_date = date.today()
+        state.mark_today_run_success()
     save_state(state, config.resolve_path(config.state_file))
 
 
@@ -294,7 +295,7 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
     """Run the daily flow: accept task → unlock movie → finish task."""
 
     if not should_run_today(state):
-        logger.info("Today's daily flow is already marked complete; exiting.")
+        logger.info("Today's daily flow already succeeded (last_run_success_date); exiting.")
         return state
 
     # Step 0a: ensure monthly tasks are claimed (independent of daily status).
@@ -326,7 +327,10 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
     prefer_playlist = status.playlist_unlock_progress < PLAYLIST_UNLOCK_TARGET
     resource = pick_resource(config, prefer_playlist=prefer_playlist)
     if resource is None:
-        logger.warning("没有未解锁的影片可供选择，无法完成每日任务。")
+        msg = "没有未解锁的影片可供选择，无法完成每日任务。"
+        logger.warning(msg)
+        state.record_run_failure(msg)
+        notify_error(config, msg)
         _save_status_to_state(status, state, config)
         return state
 

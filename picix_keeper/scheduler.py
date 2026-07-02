@@ -9,9 +9,13 @@ from .models import AppState, TaskStatus
 
 
 def should_run_today(state: AppState) -> bool:
-    """Return False only when today's daily flow has already completed."""
+    """Return False only when today's run already succeeded.
 
-    return not (state.last_run_date == date.today() and state.daily_done)
+    Failed attempts (network errors, expired session, no movies, etc.) do not
+    set ``last_run_success_date``, so the same calendar day can retry.
+    """
+
+    return state.last_run_success_date != date.today()
 
 
 def monthly_finalize_hint(status: TaskStatus) -> str:

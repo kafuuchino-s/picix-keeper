@@ -19,6 +19,7 @@ from .config import (
 from .constants import DEFAULT_CONFIG_EXAMPLE_PATH, DEFAULT_CONFIG_PATH
 from .http_client import AuthenticationExpiredError
 from .models import AppState, TaskStatus
+from .connectivity import is_likely_offline
 from .notifier import notify_error, notify_status
 from .scheduler import monthly_finalize_hint
 from .state import load_state, save_state
@@ -114,10 +115,13 @@ def run(
 
     try:
         updated_state = daily_keep_alive_http(config, state)
-    except AuthenticationExpiredError as exc:
+    except Exception as exc:
+        state.record_run_failure(str(exc))
+        save_state(state, state_path)
         typer.secho(str(exc), fg=typer.colors.RED)
-        notify_error(config, str(exc))
-        raise typer.Exit(1)
+        if not is_likely_offline(exc):
+            notify_error(config, str(exc))
+        raise typer.Exit(1) from exc
 
     save_state(updated_state, state_path)
     typer.echo("State saved.")

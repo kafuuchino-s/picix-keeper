@@ -64,7 +64,7 @@ Configuration is loaded from `config.yaml` into Pydantic models (`AppConfig`, `S
 
 ### State persistence (`state.py`, `models.py`)
 
-- `AppState` is the local JSON state (`state.json`). It tracks `last_run_date`, `daily_done`, counters (`monthly_unlock_progress`, `playlist_unlock_progress`, `points`, `package_remaining`), and a set of `unlocked_ids` to avoid re-unlocking the same resource.
+- `AppState` is the local JSON state (`state.json`). It tracks run cadence (`last_run_success_date` — skip further runs today only after a successful daily flow; `last_run_attempt_date` / `last_run_error` on failures), `daily_done`, counters (`monthly_unlock_progress`, `playlist_unlock_progress`, `points`, `package_remaining`), and a set of `unlocked_ids` to avoid re-unlocking the same resource. Older `state.json` files without `last_run_success_date` are migrated when loaded if `last_run_date` is today and `daily_done` is true.
 - `TaskStatus` is the ephemeral status parsed from the task center page on each run.
 - `state.apply_status(status)` copies the latest task-center counters into local state.
 
@@ -72,7 +72,7 @@ Configuration is loaded from `config.yaml` into Pydantic models (`AppConfig`, `S
 
 `daily_keep_alive()` is the core automation routine:
 
-1. Check `should_run_today(state)` — skip if `last_run_date == today` and `daily_done` is true.
+1. Check `should_run_today(state)` — skip only if `last_run_success_date == today` (failed attempts the same day do not block retries).
 2. Open the task center (`config.task_center_url`) and parse status via `get_task_status(page, config)`.
 3. If the daily task is already done, save state and exit.
 4. Pick a resource via `resource_picker.pick_resource(config, state, prefer_playlist)`.
@@ -89,7 +89,7 @@ Resources are configured URLs grouped into `playlist` and `normal` pools. Each r
 
 ### Scheduler helpers (`scheduler.py`)
 
-- `should_run_today()` gates execution using local state.
+- `should_run_today()` returns false only when `last_run_success_date` is today; network/auth/no-resource failures leave success date unset so cron can retry.
 - `is_within_daily_window()` supports windows that cross midnight.
 - `monthly_finalize_hint()` computes the points needed to reach the monthly 50-unlock target and the reward amount (`MONTHLY_REWARD_POINTS` = 640).
 
@@ -103,6 +103,7 @@ Resources are configured URLs grouped into `playlist` and `normal` pools. Each r
 - `picix_keeper/state.py` — JSON read/write for `state.json`.
 - `picix_keeper/resource_picker.py` — Resource pool building and selection.
 - `picix_keeper/scheduler.py` — Run-date gating and month-end math.
+- `picix_keeper/connectivity.py` — Offline detection for skipping Telegram on likely network failures.
 - `picix_keeper/constants.py` — Hardcoded targets and default file paths.
 - `config.example.yaml` — Default config template copied by `init`.
 - `scripts/install_playwright.sh` — Convenience script to install Chromium.
