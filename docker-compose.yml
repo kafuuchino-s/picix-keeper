@@ -1,6 +1,6 @@
 services:
   picix-keeper:
-    build: .
+    image: ghcr.io/kafuuchino-s/picix-keeper:latest
     container_name: picix-keeper
     restart: unless-stopped
     volumes:

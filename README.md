@@ -130,12 +130,14 @@ picix-keeper finalize
 
 ## Docker
 
-本地构建与运行（配置与状态挂载到 `./data`）：
+使用 GHCR 预构建镜像（与 GitHub Actions 推送的一致，配置与状态挂载到 `./data`）：
 
 ```bash
-docker compose build
+docker compose pull
 docker compose up -d
 ```
+
+若需本地改代码后自行构建，可临时在 `docker-compose.yml` 里把 `image:` 改回 `build: .`，或单独 `docker build -t ghcr.io/kafuuchino-s/picix-keeper:local .`。
 
 容器默认以 `cron` 模式按 `config.yaml` 中的 `cron_schedule` 定时执行 `picix-keeper run`。
 
