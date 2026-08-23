@@ -54,6 +54,26 @@ def _save_status_to_state(status: TaskStatus, state: AppState, config: AppConfig
 # JSON API helpers
 # ---------------------------------------------------------------------------
 
+def _task_progress(task: dict[str, Any]) -> dict[str, Any]:
+    """Return the progress object from either the new or old task schema."""
+    return task.get("progress") or task.get("process") or {}
+
+
+def _is_task_finished(proc: dict[str, Any]) -> bool:
+    status = str(proc.get("status") or "").upper()
+    if status in {"COMPLETED", "FINISHED", "DONE", "CLAIMED"}:
+        return True
+    return proc.get("isFinish") == "Y"
+
+
+def _progress_count(proc: dict[str, Any]) -> int:
+    value = proc.get("progress", proc.get("process", 0))
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _parse_task_list_json(body: str) -> dict[str, Any]:
     """Parse /api/Tasks/list JSON and return extracted fields."""
     data: dict[str, Any] = {}
@@ -69,7 +89,7 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
         "monthly_unlock_progress": 0,
         "playlist_unlock_progress": 0,
         # Per-monthly-task accepted flags: True once the API returns a
-        # ``process`` object (None ⇒ not yet claimed).
+        # ``progress`` object (missing ⇒ not yet claimed).
         "M_UL_50_accepted": False,
         "M_UL_ML_20_accepted": False,
         "monthly_accepted": False,
@@ -78,16 +98,16 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
     for t in tasks:
         if not isinstance(t, dict):
             continue
-        unique = t.get("unique", "")
-        proc = t.get("process", {}) or {}
+        unique = t.get("code") or t.get("unique", "")
+        proc = _task_progress(t)
         if unique == "D_UL_1":
-            out["daily_done"] = (proc.get("isFinish") == "Y")
-            out["daily_accepted"] = bool(proc)  # has process ⇒ already accepted
+            out["daily_done"] = _is_task_finished(proc)
+            out["daily_accepted"] = bool(proc)  # has progress ⇒ already accepted
         elif unique == "M_UL_50":
-            out["monthly_unlock_progress"] = proc.get("process", 0)
+            out["monthly_unlock_progress"] = _progress_count(proc)
             out["M_UL_50_accepted"] = bool(proc)
         elif unique == "M_UL_ML_20":
-            out["playlist_unlock_progress"] = proc.get("process", 0)
+            out["playlist_unlock_progress"] = _progress_count(proc)
             out["M_UL_ML_20_accepted"] = bool(proc)
     # True only if BOTH monthly tasks are claimed.
     out["monthly_accepted"] = all(out.get(f"{u}_accepted") for u in monthly_uniques)
@@ -218,14 +238,14 @@ def _accept_task(client: CurlClient, base: str, unique: str, label: str) -> bool
     Returns True if the task is now accepted (either freshly claimed or already
     claimed earlier in the period). Returns False only on unexpected failures.
     """
-    sc, body = client.post(base + "/api/Tasks/accept", json={"unique": unique})
+    sc, body = client.post(base + "/api/Tasks/accept", json={"code": unique})
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("✅ {}领取成功", label)
         return True
-    # "周期内您已接取过该任务" is fine — task already accepted
+    # "当前周期已领取该任务" / "周期内您已接取过该任务" is fine — already accepted
     msg = resp.get("msg", "")
-    if "已接取" in msg:
+    if "已接取" in msg or "已领取" in msg:
         logger.info("{}已领取过（无需重复领取）", label)
         return True
     logger.warning("领取{}返回: {}", label, msg)
@@ -240,9 +260,9 @@ def _accept_daily_task(client: CurlClient, base: str) -> None:
 def _ensure_monthly_tasks_accepted(client: CurlClient, base: str) -> None:
     """Claim any monthly unlock tasks that aren't accepted yet.
 
-    Without this, ``M_UL_50`` / ``M_UL_ML_20`` never get a ``process`` field
-    from the API and their progress stays at 0 forever. Idempotent: only calls
-    accept for tasks whose ``process`` is missing.
+    Without this, ``M_UL_50`` / ``M_UL_ML_20`` never get a ``progress`` field
+    from the API and their counters stay at 0 forever. Idempotent: only calls
+    accept for tasks whose ``progress`` is missing.
     """
     parsed = _parse_task_list_json(client.get(base + "/api/Tasks/list")[1])
     for unique in MONTHLY_TASK_UNIQUES:
@@ -252,17 +272,12 @@ def _ensure_monthly_tasks_accepted(client: CurlClient, base: str) -> None:
 
 
 def _finish_daily_task(client: CurlClient, base: str) -> None:
-    """POST /Tasks/finish to collect the daily task reward (15 points)."""
-    sc, body = client.post(base + "/api/Tasks/finish", json={"unique": "D_UL_1"})
-    resp = _json.loads(body) if sc == 200 else {}
-    if resp.get("success"):
-        logger.info("✅ 每日解锁任务完成，已领取 15 积分")
-    else:
-        msg = resp.get("msg", "")
-        if "已经完成" in msg:
-            logger.info("每日解锁任务已完成过（无需重复领取积分）")
-        else:
-            logger.warning("完成任务返回: {}", msg)
+    """Confirm the daily task completed; reward is auto-granted on unlock."""
+    parsed = _parse_task_list_json(client.get(base + "/api/Tasks/list")[1])
+    if parsed.get("daily_done"):
+        logger.info("✅ 每日解锁任务完成（奖励已自动到账）")
+        return
+    logger.warning("解锁后每日任务仍未完成，进度可能未计入")
 
 
 # ---------------------------------------------------------------------------
@@ -292,14 +307,14 @@ def unlock_resource_via_http(config: AppConfig, movie_id: str, *, list_id: int |
 # ---------------------------------------------------------------------------
 
 def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
-    """Run the daily flow: accept task → unlock movie → finish task."""
+    """Run the daily flow: accept task → unlock movie → confirm completion."""
 
     if not should_run_today(state):
         logger.info("Today's daily flow already succeeded (last_run_success_date); exiting.")
         return state
 
     # Step 0a: ensure monthly tasks are claimed (independent of daily status).
-    # A claimed monthly task gets a ``process`` field from the API; until then,
+    # A claimed monthly task gets a ``progress`` field from the API; until then,
     # unlocks don't count toward the 50/20 monthly progress. Claiming is
     # idempotent, so this is cheap even when the daily task is already done.
     _ensure_monthly_tasks_accepted(CurlClient(config), config.base_url.rstrip("/"))
@@ -345,7 +360,7 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
 
     unlock_resource_via_http(config, resource.id, list_id=resource.list_id)
 
-    # Step 4: finish daily task (claim reward)
+    # Step 4: confirm daily task completed (reward is auto-granted)
     _finish_daily_task(client, base)
 
     # Step 5: re-read status and save
