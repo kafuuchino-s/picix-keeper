@@ -23,6 +23,7 @@ from .connectivity import is_likely_offline
 from .notifier import notify_error, notify_status
 from .scheduler import monthly_finalize_hint
 from .state import load_state, save_state
+from .auth import run_telegram_login
 from .tasks import (
     daily_keep_alive_http,
     get_task_status_via_http,
@@ -89,7 +90,7 @@ def status(
     config_path: Path = typer.Option(DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config.yaml."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logs."),
 ) -> None:
-    """Read and display the task-center status via curl_cffi (no browser)."""
+    """Read and display the task-center status via signed HTTP."""
 
     _configure_logging(verbose)
     config = _load_config_or_exit(config_path)
@@ -106,7 +107,7 @@ def run(
     config_path: Path = typer.Option(DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config.yaml."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logs."),
 ) -> None:
-    """Run the daily low-frequency keep-alive flow via curl_cffi (no browser)."""
+    """Run the daily low-frequency keep-alive flow via signed HTTP."""
 
     _configure_logging(verbose)
     config = _load_config_or_exit(config_path)
@@ -136,6 +137,23 @@ def run(
         pass
 
 
+@app.command("login")
+def login(
+    config_path: Path = typer.Option(DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config.yaml."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logs."),
+) -> None:
+    """Bind an ECDSA proof key via Telegram login code."""
+
+    _configure_logging(verbose)
+    config = _load_config_or_exit(config_path)
+    try:
+        run_telegram_login(config)
+    except Exception as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(1) from exc
+    typer.echo("登录完成，现在可以运行 picix-keeper status / run。")
+
+
 @app.command("extract")
 def extract(
     config_path: Path = typer.Option(DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config.yaml."),
@@ -145,7 +163,8 @@ def extract(
     import json
 
     config = _load_config_or_exit(config_path)
-    typer.echo("=== 手动提取浏览器 session ===")
+    typer.echo("=== 手动提取 Cloudflare cookie ===")
+    typer.echo("站点 API 登录请用 picix-keeper login。这条命令只更新 cf_clearance。")
     typer.echo("1. 打开你的浏览器，访问 https://picix.us 并正常登录（过 Cloudflare）。")
     typer.echo("2. 登录成功后，按 F12 打开开发者工具，切换到 Console 标签。")
     typer.echo("3. 复制并执行以下整段代码：")
@@ -191,7 +210,7 @@ def extract(
     storage_state_path.parent.mkdir(parents=True, exist_ok=True)
     storage_state_path.write_text(json.dumps(storage_state, ensure_ascii=False, indent=2), encoding="utf-8")
     typer.echo(f"已保存 storage_state 到 {storage_state_path}")
-    typer.echo("现在可以运行 picix-keeper status / run 了，全程使用 curl_cffi。")
+    typer.echo("已保存 cookie。若尚未绑定签名密钥，请再运行 picix-keeper login。")
 
 
 @app.command("finalize")

@@ -60,7 +60,13 @@ browser:
 picix-keeper login
 ```
 
-命令会打开一个可见浏览器。请手动完成登录，回到终端按 Enter 后，工具会保存 Playwright `storage_state`，后续命令会复用该登录态。
+命令会申请 8 位登录码。用 Telegram 打开 `@vStreamingBot` 发送 `/login <code>`（或打开打印出的 t.me 链接）确认后，本地会保存 `proof_key.pem` 和 token。之后 `status` / `run` 用这把密钥给每次请求签名。
+
+Docker 里同样执行：
+
+```bash
+docker exec -it picix-keeper picix-keeper login
+```
 
 ## 查看状态
 
@@ -139,7 +145,7 @@ docker compose up -d
 
 若需本地改代码后自行构建，可临时在 `docker-compose.yml` 里把 `image:` 改回 `build: .`，或单独 `docker build -t ghcr.io/kafuuchino-s/picix-keeper:local .`。
 
-容器默认以 `cron` 模式按 `config.yaml` 中的 `cron_schedule` 定时执行 `picix-keeper run`。
+容器默认以 `cron` 模式按 `config.yaml` 中的 `cron_schedule` 定时执行 `picix-keeper run`。首次或登录失效后需要 `docker exec -it picix-keeper picix-keeper login` 绑定签名密钥。
 
 ### GitHub Actions → GHCR
 

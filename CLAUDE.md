@@ -36,7 +36,7 @@ There is currently **no test suite, linter, or type-checker configured** in the 
 The entry point is `picix-keeper` (defined in `pyproject.toml` as `picix_keeper.cli:app`).
 
 - `picix-keeper init` — Create `config.yaml` (copied from `config.example.yaml`) and `state.json`.
-- `picix-keeper login` — Open a visible browser for manual login, then persist Playwright `storage_state.json`.
+- `picix-keeper login` — Issue a Telegram login code, bind a local ECDSA P-256 proof key, and persist token + `proof_key.pem`.
 - `picix-keeper status` — Open the task center and print parsed task status.
 - `picix-keeper run` — Execute the daily keep-alive flow (open task center, read status, pick resource, optionally unlock).
 - `picix-keeper finalize` — Print a month-end hint based on local state (no browser involved).
@@ -53,14 +53,9 @@ Configuration is loaded from `config.yaml` into Pydantic models (`AppConfig`, `S
 - **Paths are config-relative.** `AppConfig.resolve_path()` resolves paths relative to the directory containing `config.yaml`.
 - **Strict validation.** `AppConfig` uses `extra="forbid"`; adding unexpected keys will raise a validation error.
 
-### Browser lifecycle (`browser.py`)
+### Request proofs (`proof.py`, `auth.py`, `http_client.py`)
 
-`BrowserSession` is a context manager wrapping Playwright’s sync API.
-
-- On enter, it launches Chromium with optional `executable_path` (for custom browser binaries) and creates a context.
-- If `storage_state_path` exists, it is loaded into the context so saved login cookies are reused automatically.
-- `login` uses `headless=False` and `use_storage_state=True`; after the user presses Enter, it calls `save_storage_state()` to persist cookies.
-- All other commands run headless by default unless overridden.
+picix.us requires an ECDSA P-256 signature on every authenticated API call (`X-Picix-Proof-*`). The private key is created by `picix-keeper login` (Telegram `/login` code) and stored as `proof_key.pem` next to `storage_state.json`. Replaying a browser curl token without this key revokes the session. Cloudflare `cf_clearance` is still read from `storage_state.json` when present.
 
 ### State persistence (`state.py`, `models.py`)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as _json
 import re
+import secrets
 from datetime import date
 from typing import Any
 
@@ -124,7 +125,7 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     status_code, body = client.get(base + "/api/Tasks/list")
     if status_code != 200:
         raise AuthenticationExpiredError(
-            f"任务列表返回 HTTP {status_code}，cookie/token 可能已过期，请重新运行 picix-keeper extract。"
+            f"任务列表返回 HTTP {status_code}，登录态可能已过期，请重新运行 picix-keeper login。"
         )
     parsed = _parse_task_list_json(body)
 
@@ -187,7 +188,11 @@ def _get_points(client: CurlClient, base: str) -> int:
 
 def _buy_package(client: CurlClient, base: str, good_id: int) -> bool:
     """POST /Malls/payGood to buy a resource pack. Returns True on success."""
-    sc, body = client.post(base + "/api/Malls/payGood", json={"goodId": good_id})
+    payload = {
+        "goodId": good_id,
+        "clientRequestId": secrets.token_hex(16),
+    }
+    sc, body = client.post(base + "/api/Malls/payGood", json=payload)
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("✅ 购买资源包 goodId={} 成功", good_id)
