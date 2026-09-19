@@ -55,6 +55,22 @@ def _save_status_to_state(status: TaskStatus, state: AppState, config: AppConfig
 # JSON API helpers
 # ---------------------------------------------------------------------------
 
+def _items(data: Any) -> list[Any]:
+    """Normalize a list payload.
+
+    The API now wraps arrays in ``{"items": [...]}``; older responses were
+    bare arrays. Both shapes must be accepted.
+    """
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("items", "list"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
 def _task_progress(task: dict[str, Any]) -> dict[str, Any]:
     """Return the progress object from either the new or old task schema."""
     return task.get("progress") or task.get("process") or {}
@@ -83,7 +99,7 @@ def _parse_task_list_json(body: str) -> dict[str, Any]:
     except _json.JSONDecodeError as exc:
         raise AuthenticationExpiredError(f"任务列表 JSON 解析失败: {exc}") from exc
 
-    tasks = data.get("data", [])
+    tasks = _items(data.get("data"))
     out: dict[str, Any] = {
         "daily_done": False,
         "daily_accepted": False,
@@ -134,11 +150,11 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     try:
         sc2, body2 = client.get(base + "/api/Packages/listMine")
         if sc2 == 200:
-            pkg_data = _json.loads(body2).get("data", [])
-            if pkg_data:
-                p = pkg_data[0]
-                package_remaining = p.get("total", 0) - p.get("used", 0)
-                logger.debug("Package: total={}, used={}, remaining={}", p.get("total"), p.get("used"), package_remaining)
+            pkg_data = _items(_json.loads(body2).get("data"))
+            package_remaining = sum(
+                int(p.get("total", 0) or 0) - int(p.get("used", 0) or 0) for p in pkg_data
+            )
+            logger.debug("Packages: remaining={}", package_remaining)
     except Exception as exc:
         logger.debug("Package fetch failed: {}", exc)
 
@@ -147,7 +163,7 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     try:
         sc3, body3 = client.get(base + "/api/Users/listPointHistory")
         if sc3 == 200:
-            hist = _json.loads(body3).get("data", [])
+            hist = _items(_json.loads(body3).get("data"))
             if hist:
                 points = hist[0].get("totalPoints", 0)
                 logger.debug("Points: totalPoints={}", points)
@@ -173,8 +189,8 @@ def _get_package_remaining(client: CurlClient, base: str) -> int:
     sc, body = client.get(base + "/api/Packages/listMine")
     if sc != 200:
         return 0
-    pkgs = _json.loads(body).get("data", [])
-    return sum(p.get("total", 0) - p.get("used", 0) for p in pkgs)
+    pkgs = _items(_json.loads(body).get("data"))
+    return sum(int(p.get("total", 0) or 0) - int(p.get("used", 0) or 0) for p in pkgs)
 
 
 def _get_points(client: CurlClient, base: str) -> int:
@@ -182,7 +198,7 @@ def _get_points(client: CurlClient, base: str) -> int:
     sc, body = client.get(base + "/api/Users/listPointHistory")
     if sc != 200:
         return 0
-    hist = _json.loads(body).get("data", [])
+    hist = _items(_json.loads(body).get("data"))
     return hist[0].get("totalPoints", 0) if hist else 0
 
 
@@ -290,13 +306,15 @@ def _finish_daily_task(client: CurlClient, base: str) -> None:
 # ---------------------------------------------------------------------------
 
 def unlock_resource_via_http(config: AppConfig, movie_id: str, *, list_id: int | None = None) -> None:
-    """POST /Movies/unlock to unlock a movie using resource pack quota."""
+    """POST /Movies/unlock to unlock a movie using resource pack quota.
+
+    ``list_id`` is accepted for call-site compatibility but not sent: the API
+    rejects unknown fields, and ``fromMovieList`` was removed from the schema.
+    """
     client = CurlClient(config)
     base = config.base_url.rstrip("/")
 
     payload: dict[str, Any] = {"movieId": int(movie_id)}
-    if list_id is not None:
-        payload["fromMovieList"] = list_id
 
     sc, body = client.post(base + "/api/Movies/unlock", json=payload)
     resp = _json.loads(body) if sc == 200 else {}

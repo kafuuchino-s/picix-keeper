@@ -11,7 +11,7 @@ from .models import TaskStatus
 
 def _format_status_message(status: TaskStatus) -> str:
     lines = [
-        "📊 **picix-keeper 运行结果**",
+        "📊 picix-keeper 运行结果",
         f"✅ 每日任务: {'已完成' if status.daily_done else '❌ 未完成'}",
         f"📈 月解锁进度: {status.monthly_unlock_progress}/50",
         f"📈 片单解锁进度: {status.playlist_unlock_progress}/20",
@@ -22,7 +22,7 @@ def _format_status_message(status: TaskStatus) -> str:
 
 
 def _format_error_message(error: str) -> str:
-    return f"❌ **picix-keeper 运行失败**\n{error}"
+    return f"❌ picix-keeper 运行失败\n{error}"
 
 
 def send_telegram(config: AppConfig, message: str) -> bool:
@@ -34,10 +34,10 @@ def send_telegram(config: AppConfig, message: str) -> bool:
         return False
 
     url = f"https://api.telegram.org/bot{tg.bot_token}/sendMessage"
+    # No parse_mode: error text contains raw JSON braces, which Markdown rejects.
     payload = {
         "chat_id": tg.chat_id,
         "text": message,
-        "parse_mode": "Markdown",
     }
 
     try:

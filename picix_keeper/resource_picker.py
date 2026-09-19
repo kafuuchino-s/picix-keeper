@@ -30,9 +30,10 @@ def _resolve_favorite_list_ids(config: AppConfig) -> list[int]:
         if status_code != 200:
             logger.warning("listMyMovieList returned HTTP {}", status_code)
             return []
-        data = _json.loads(body).get("data", {})
-        fav_lists = data.get("favorite", [])
-        ids = [fl["id"] for fl in fav_lists if "id" in fl]
+        data = _json.loads(body).get("data") or {}
+        # The key was renamed from ``favorite`` to ``mine``; accept both.
+        fav_lists = data.get("mine") or data.get("favorite") or []
+        ids = [fl["id"] for fl in fav_lists if isinstance(fl, dict) and "id" in fl]
         logger.info("Auto-discovered {} favorite list(s): {}", len(ids), ids)
         return ids
     except Exception as exc:
