@@ -66,15 +66,20 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
             for movie in data.get("list", []):
                 if movie.get("isUnlock"):
                     continue
-                movie_id = movie.get("id")
-                if movie_id is None:
+                movie_list_link_id = movie.get("movieListLinkId")
+                if (
+                    not isinstance(movie_id, int)
+                    or not isinstance(movie_list_link_id, int)
+                    or movie_id <= 0
+                    or movie_list_link_id <= 0
+                ):
                     continue
                 resources.append(
                     Resource(
                         id=str(movie_id),
                         url=f"{base}/Movies/Detail/{movie_id}",
                         kind=ResourceKind.PLAYLIST,
-                        list_id=list_id,
+                        movie_list_link_id=movie_list_link_id,
                     )
                 )
         except Exception as exc:

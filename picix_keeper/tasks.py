@@ -305,16 +305,19 @@ def _finish_daily_task(client: CurlClient, base: str) -> None:
 # Unlock resource (stub — waiting for unlock API endpoint)
 # ---------------------------------------------------------------------------
 
-def unlock_resource_via_http(config: AppConfig, movie_id: str, *, list_id: int | None = None) -> None:
-    """POST /Movies/unlock to unlock a movie using resource pack quota.
-
-    ``list_id`` is accepted for call-site compatibility but not sent: the API
-    rejects unknown fields, and ``fromMovieList`` was removed from the schema.
-    """
+def unlock_resource_via_http(
+    config: AppConfig,
+    movie_id: str,
+    *,
+    movie_list_link_id: int | None = None,
+) -> None:
+    """POST /Movies/unlock using the site's current request schema."""
     client = CurlClient(config)
     base = config.base_url.rstrip("/")
 
     payload: dict[str, Any] = {"movieId": int(movie_id)}
+    if movie_list_link_id is not None:
+        payload["movieListLinkId"] = movie_list_link_id
 
     sc, body = client.post(base + "/api/Movies/unlock", json=payload)
     resp = _json.loads(body) if sc == 200 else {}
@@ -381,7 +384,11 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
         _save_status_to_state(status, state, config)
         return state
 
-    unlock_resource_via_http(config, resource.id, list_id=resource.list_id)
+    unlock_resource_via_http(
+        config,
+        resource.id,
+        movie_list_link_id=resource.movie_list_link_id,
+    )
 
     # Step 4: confirm daily task completed (reward is auto-granted)
     _finish_daily_task(client, base)
