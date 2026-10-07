@@ -66,6 +66,7 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
             for movie in data.get("list", []):
                 if movie.get("isUnlock"):
                     continue
+                movie_id = movie.get("id")
                 movie_list_link_id = movie.get("movieListLinkId")
                 if (
                     not isinstance(movie_id, int)
