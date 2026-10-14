@@ -1,4 +1,6 @@
 base_url: "https://picix.us/"
+# 站点 API 前缀为 /api/<content_domain>，可选 ADULT 或 CINEMA
+content_domain: "ADULT"
 dry_run: true
 storage_state_path: "storage_state.json"
 state_file: "state.json"

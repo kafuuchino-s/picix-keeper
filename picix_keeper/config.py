@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
@@ -13,6 +13,8 @@ from .constants import DEFAULT_CONFIG_PATH
 
 DEFAULT_CONFIG_TEMPLATE = """\
 base_url: "https://picix.us/"
+# 站点 API 前缀为 /api/<content_domain>，可选 ADULT 或 CINEMA
+content_domain: "ADULT"
 dry_run: true
 storage_state_path: "storage_state.json"
 state_file: "state.json"
@@ -95,6 +97,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     base_url: str
+    content_domain: Literal["ADULT", "CINEMA"] = "ADULT"
     dry_run: bool = True
     storage_state_path: Path = Path("storage_state.json")
     state_file: Path = Path("state.json")
@@ -105,6 +108,12 @@ class AppConfig(BaseModel):
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
 
     _config_dir: Path = PrivateAttr(default=Path("."))
+
+    @property
+    def api_base(self) -> str:
+        """API root. The site moved endpoints under /api/<content-domain>."""
+
+        return f"{self.base_url.rstrip('/')}/api/{self.content_domain.lower()}"
 
     def resolve_path(self, path: str | Path) -> Path:
         """Resolve config-relative paths."""

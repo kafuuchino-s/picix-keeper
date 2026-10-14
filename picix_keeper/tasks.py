@@ -135,10 +135,10 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     """Fetch task center via HTTP using site JSON APIs."""
 
     client = CurlClient(config)
-    base = config.base_url.rstrip("/")
+    base = config.api_base
 
     # 1) Task list
-    status_code, body = client.get(base + "/api/Tasks/list")
+    status_code, body = client.get(base + "/Tasks/list")
     if status_code != 200:
         raise AuthenticationExpiredError(
             f"任务列表返回 HTTP {status_code}，登录态可能已过期，请重新运行 picix-keeper login。"
@@ -148,7 +148,7 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     # 2) Package remaining
     package_remaining = 0
     try:
-        sc2, body2 = client.get(base + "/api/Packages/listMine")
+        sc2, body2 = client.get(base + "/Packages/listMine")
         if sc2 == 200:
             pkg_data = _items(_json.loads(body2).get("data"))
             package_remaining = sum(
@@ -161,7 +161,7 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
     # 3) Points
     points = 0
     try:
-        sc3, body3 = client.get(base + "/api/Users/listPointHistory")
+        sc3, body3 = client.get(base + "/Users/listPointHistory")
         if sc3 == 200:
             hist = _items(_json.loads(body3).get("data"))
             if hist:
@@ -186,7 +186,7 @@ def get_task_status_via_http(config: AppConfig) -> TaskStatus:
 
 def _get_package_remaining(client: CurlClient, base: str) -> int:
     """Return remaining unlock quota across all owned packages."""
-    sc, body = client.get(base + "/api/Packages/listMine")
+    sc, body = client.get(base + "/Packages/listMine")
     if sc != 200:
         return 0
     pkgs = _items(_json.loads(body).get("data"))
@@ -195,7 +195,7 @@ def _get_package_remaining(client: CurlClient, base: str) -> int:
 
 def _get_points(client: CurlClient, base: str) -> int:
     """Return current total points."""
-    sc, body = client.get(base + "/api/Users/listPointHistory")
+    sc, body = client.get(base + "/Users/listPointHistory")
     if sc != 200:
         return 0
     hist = _items(_json.loads(body).get("data"))
@@ -208,7 +208,7 @@ def _buy_package(client: CurlClient, base: str, good_id: int) -> bool:
         "goodId": good_id,
         "clientRequestId": secrets.token_hex(16),
     }
-    sc, body = client.post(base + "/api/Malls/payGood", json=payload)
+    sc, body = client.post(base + "/Malls/payGood", json=payload)
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("✅ 购买资源包 goodId={} 成功", good_id)
@@ -259,7 +259,7 @@ def _accept_task(client: CurlClient, base: str, unique: str, label: str) -> bool
     Returns True if the task is now accepted (either freshly claimed or already
     claimed earlier in the period). Returns False only on unexpected failures.
     """
-    sc, body = client.post(base + "/api/Tasks/accept", json={"code": unique})
+    sc, body = client.post(base + "/Tasks/accept", json={"code": unique})
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("✅ {}领取成功", label)
@@ -285,7 +285,7 @@ def _ensure_monthly_tasks_accepted(client: CurlClient, base: str) -> None:
     from the API and their counters stay at 0 forever. Idempotent: only calls
     accept for tasks whose ``progress`` is missing.
     """
-    parsed = _parse_task_list_json(client.get(base + "/api/Tasks/list")[1])
+    parsed = _parse_task_list_json(client.get(base + "/Tasks/list")[1])
     for unique in MONTHLY_TASK_UNIQUES:
         if parsed.get(f"{unique}_accepted"):
             continue
@@ -294,7 +294,7 @@ def _ensure_monthly_tasks_accepted(client: CurlClient, base: str) -> None:
 
 def _finish_daily_task(client: CurlClient, base: str) -> None:
     """Confirm the daily task completed; reward is auto-granted on unlock."""
-    parsed = _parse_task_list_json(client.get(base + "/api/Tasks/list")[1])
+    parsed = _parse_task_list_json(client.get(base + "/Tasks/list")[1])
     if parsed.get("daily_done"):
         logger.info("✅ 每日解锁任务完成（奖励已自动到账）")
         return
@@ -313,13 +313,13 @@ def unlock_resource_via_http(
 ) -> None:
     """POST /Movies/unlock using the site's current request schema."""
     client = CurlClient(config)
-    base = config.base_url.rstrip("/")
+    base = config.api_base
 
     payload: dict[str, Any] = {"movieId": int(movie_id)}
     if movie_list_link_id is not None:
         payload["movieListLinkId"] = movie_list_link_id
 
-    sc, body = client.post(base + "/api/Movies/unlock", json=payload)
+    sc, body = client.post(base + "/Movies/unlock", json=payload)
     resp = _json.loads(body) if sc == 200 else {}
     if resp.get("success"):
         logger.info("🔓 影片 id={} 解锁成功", movie_id)
@@ -343,7 +343,7 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
     # A claimed monthly task gets a ``progress`` field from the API; until then,
     # unlocks don't count toward the 50/20 monthly progress. Claiming is
     # idempotent, so this is cheap even when the daily task is already done.
-    _ensure_monthly_tasks_accepted(CurlClient(config), config.base_url.rstrip("/"))
+    _ensure_monthly_tasks_accepted(CurlClient(config), config.api_base)
 
     # Step 0: check current status
     status = get_task_status_via_http(config)
@@ -353,11 +353,11 @@ def daily_keep_alive_http(config: AppConfig, state: AppState) -> AppState:
         return state
 
     client = CurlClient(config)
-    base = config.base_url.rstrip("/")
+    base = config.api_base
 
     # Step 1: accept daily task (if not yet accepted)
     if not _parse_task_list_json(
-        client.get(base + "/api/Tasks/list")[1]
+        client.get(base + "/Tasks/list")[1]
     ).get("daily_accepted"):
         _accept_daily_task(client, base)
 

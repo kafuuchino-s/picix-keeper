@@ -23,9 +23,9 @@ def run_telegram_login(config: AppConfig) -> None:
     public_key = public_key_spki_b64url(private_key)
     client = CurlClient(config, private_key=private_key, token=None)
 
-    base = config.base_url.rstrip("/")
+    base = config.api_base
     status, body = client.post(
-        base + "/api/Users/getLoginCode",
+        base + "/Users/getLoginCode",
         json={"proofPublicKey": public_key},
     )
     payload = json.loads(body) if status == 200 else {}
@@ -52,7 +52,7 @@ def run_telegram_login(config: AppConfig) -> None:
     while time.time() < deadline:
         time.sleep(LOGIN_POLL_SECONDS)
         status, body = client.post(
-            base + "/api/Users/checkLoginCode",
+            base + "/Users/checkLoginCode",
             json={"code": code},
         )
         try:

@@ -24,9 +24,9 @@ def _resolve_favorite_list_ids(config: AppConfig) -> list[int]:
 
     # Auto-discover: fetch all favorite lists from the API
     client = CurlClient(config)
-    base = config.base_url.rstrip("/")
+    base = config.api_base
     try:
-        status_code, body = client.get(base + "/api/Movies/listMyMovieList")
+        status_code, body = client.get(base + "/Movies/listMyMovieList")
         if status_code != 200:
             logger.warning("listMyMovieList returned HTTP {}", status_code)
             return []
@@ -54,9 +54,10 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
 
     client = CurlClient(config)
     resources: list[Resource] = []
-    base = config.base_url.rstrip("/")
+    base = config.api_base
+    site = config.base_url.rstrip("/")
     for list_id in list_ids:
-        api_url = base + f"/api/Movies/getMovieList?listId={list_id}"
+        api_url = base + f"/Movies/getMovieList?listId={list_id}"
         try:
             status_code, body = client.get(api_url)
             if status_code != 200:
@@ -78,7 +79,7 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
                 resources.append(
                     Resource(
                         id=str(movie_id),
-                        url=f"{base}/Movies/Detail/{movie_id}",
+                        url=f"{site}/Movies/Detail/{movie_id}",
                         kind=ResourceKind.PLAYLIST,
                         movie_list_link_id=movie_list_link_id,
                     )
