@@ -12,7 +12,7 @@ from .constants import DEFAULT_CONFIG_PATH
 
 
 DEFAULT_CONFIG_TEMPLATE = """\
-base_url: "https://picix.us/"
+base_url: "https://jav.picix.us/"
 # 站点 API 前缀为 /api/<content_domain>，可选 ADULT 或 CINEMA
 content_domain: "ADULT"
 dry_run: true
