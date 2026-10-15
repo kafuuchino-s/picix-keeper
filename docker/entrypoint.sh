@@ -22,12 +22,16 @@ if [ "$1" = "cron" ]; then
     # 设置系统时区（cron 读 /etc/localtime 不读 TZ 环境变量）
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
     echo "Asia/Shanghai" > /etc/timezone
-    # 安装 cron — 非交互模式，保留本地 crontab
-    DEBIAN_FRONTEND=noninteractive apt-get update -qq && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::="--force-confold" cron
+
+    # cron 由镜像提供；缺失说明镜像构建有问题，直接失败而不是静默空转
+    if ! command -v cron >/dev/null 2>&1; then
+        echo "ERROR: cron is not installed in this image, cannot schedule runs" >&2
+        exit 1
+    fi
+
+    touch /data/log.txt
     cron
     echo "Cron started. Container staying alive."
-    touch /data/log.txt
     exec sleep infinity
 
 # 否则直接执行传入的命令（如 run, status, extract）

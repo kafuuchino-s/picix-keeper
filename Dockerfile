@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-RUN apt-get update -qq && apt-get install -y -qq tzdata && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && apt-get install -y -qq tzdata cron && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=Asia/Shanghai
 
