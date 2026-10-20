@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 
 import requests
 from loguru import logger
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import AppConfig
 from .proof import (
@@ -116,6 +118,7 @@ class CurlClient:
     ) -> None:
         self.config = config
         self.session = requests.Session()
+        self._install_retries()
         stored = _playwright_storage_to_tokens(
             config.resolve_path(config.storage_state_path)
         )
@@ -124,6 +127,26 @@ class CurlClient:
             private_key if private_key is not None else load_private_key(proof_key_path(config))
         )
         self._inject_cookies_from_storage()
+
+    def _install_retries(self) -> None:
+        """Retry transient connection/5xx failures so one blip doesn't fail a run.
+
+        Only idempotent requests are retried by urllib3, so a POST is never
+        replayed — unlock calls must not be duplicated.
+        """
+
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=2,
+            backoff_factor=1.5,
+            status_forcelist=(502, 503, 504),
+            allowed_methods=frozenset({"GET", "HEAD", "OPTIONS"}),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def _inject_cookies_from_storage(self) -> None:
         storage_path = self.config.resolve_path(self.config.storage_state_path)
