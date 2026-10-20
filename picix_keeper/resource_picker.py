@@ -56,12 +56,14 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
     resources: list[Resource] = []
     base = config.api_base
     site = config.base_url.rstrip("/")
+    errors: list[str] = []
     for list_id in list_ids:
         api_url = base + f"/Movies/getMovieList?listId={list_id}"
         try:
             status_code, body = client.get(api_url)
             if status_code != 200:
                 logger.warning("Favorite list {} returned HTTP {}", list_id, status_code)
+                errors.append(f"片单 {list_id} 返回 HTTP {status_code}")
                 continue
             data = _json.loads(body).get("data", {})
             for movie in data.get("list", []):
@@ -86,6 +88,13 @@ def fetch_favorite_list_resources(config: AppConfig) -> list[Resource]:
                 )
         except Exception as exc:
             logger.warning("Failed to fetch favorite list {}: {}", list_id, exc)
+            errors.append(f"片单 {list_id}: {exc}")
+
+    # 拉取失败不能被当成“没有可解锁影片”，否则会把网络故障报成内容问题。
+    if errors and not resources:
+        raise RuntimeError(
+            f"片单拉取失败，无法判断可解锁影片：{errors[0]}"
+        )
     return resources
 
 
